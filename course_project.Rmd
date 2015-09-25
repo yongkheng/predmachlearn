@@ -1,0 +1,92 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "Yong Kheng Goh"
+output: html_document
+date: '25/09/2015'
+---
+
+## Introduction
+In this project, we are to analyse data collected from some accelerometers attached on apparatus or the body of 6 participants. The data will be used to predict how well these participants did their exercise. The data provided are extracted from  http://groupware.les.inf.puc-rio.br/har, and are already divided up to a training set and a test set.
+
+## Data Pre-processing
+Load the data.
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache=TRUE)
+```
+```{r cache=TRUE}
+library(caret, quietly=TRUE)
+library(curl)
+#url_train <- curl('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv')
+#url_test  <- curl('https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv')
+url_train <- './pml-training.csv'
+url_test  <- './pml-testing.csv'
+pml_train <- read.csv(url_train)
+pml_test  <- read.csv(url_test)
+```
+
+Remove columns with NA strings, including "NA", "#DIV/0!", and "".
+```{r}
+train_cln <- pml_train
+train_cln[train_cln=='#DIV/0!'] <- NA
+train_cln[train_cln=='']        <- NA
+train_cln <- train_cln[, colSums(is.na(train_cln))==0]
+```
+
+
+Inspect the data with *str(train_cln)*, notice some of the variables are not suitable for the model building, such as timestamps/window variables, and need to be removed. All the rest of the variables are already correctly cast into numeric form by R, thus no need to do type casting.
+```{r}
+train_tag <- grepl('^X|timestamp|window', names(train_cln) )
+train_cln <- train_cln[, !train_tag]
+#str(train_cln)
+```
+
+Do the same to the test data.
+```{r}
+test_cln <- pml_test
+test_cln[test_cln=='#DIV/0!'] <- NA
+test_cln[test_cln=='']        <- NA
+test_cln <- test_cln[, colSums(is.na(test_cln))==0]
+test_tag <- grepl('^X|timestamp|window', names(test_cln) )
+test_cln <- test_cln[, !test_tag]
+```
+
+Then, the cleaned training data set is sliced into two partitions of training set and validation set with 70/30 rule.
+```{r}
+library(caret, quietly = T)
+set.seed(12345)
+partition <- createDataPartition(train_cln$classe, p=0.7, list=FALSE)
+training  <- train_cln[partition,]
+testing   <- train_cln[-partition,]
+```
+
+## Exploratory
+The frequency of observations for the five types of classe are roughly evenly distributed, which is a good sign,
+```{r fig.height=4, fig.width=5 }
+barplot(table(train_cln$classe), xlab='classe', main='Frequency of classe in training set')
+```
+
+## Building Model
+We use a random forest algorithm to fit the training dataset. Usually the random forest method is robust enough to cater for classification problems with roughly same number of observations of all the classes.
+
+```{r}
+rf_config <- trainControl(method='cv', number = 5, allowParallel=T)
+rf_model  <- train(classe ~ ., data=training, method='rf', trControl=rf_config)
+rf_model
+rf_model$finalModel
+```
+
+Then the performance of the random forest model is tested using the validation dataset.
+```{r}
+rf_validate <- predict(rf_model, testing)
+rf_conf_mat <- confusionMatrix(rf_validate, testing$classe)
+rf_conf_mat
+```
+
+The overall accuracy indicated from the confusion matrix is 0.9884, which is very good.
+
+## Predict the remaining test data
+Finally, we will apply the model obtained from the previous section to the testing dataset.
+```{r}
+answer <- predict(rf_model, test_cln)
+answer
+```
