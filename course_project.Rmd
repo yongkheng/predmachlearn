@@ -1,7 +1,7 @@
 ---
 title: "Practical Machine Learning Course Project"
 author: "Yong Kheng Goh"
-output: html_document
+output: md_document
 date: '25/09/2015'
 ---
 
